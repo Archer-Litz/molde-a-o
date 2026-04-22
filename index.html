@@ -227,15 +227,20 @@
                     </div>
                 </details>
 
+                <!-- Lista Dinâmica de Atributos Focados -->
+                <div class="bg-[var(--bg-input)] p-4 rounded-lg border border-[var(--border-color)] mb-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="block text-xs font-bold text-zinc-300">Atributos Focados (Ex: Esgrima e Agilidade):</label>
+                        <button onclick="addFocusedAttr()" class="bg-[var(--accent)] text-black text-xs font-bold px-3 py-1 rounded hover:opacity-80 transition-opacity">
+                            <i class="fa-solid fa-plus"></i> Adicionar
+                        </button>
+                    </div>
+                    <div id="focusedAttrList" class="space-y-3">
+                        <!-- Itens renderizados pelo JS -->
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs font-bold mb-1 text-zinc-400">Atributo Focado (Ex: Inteligência)</label>
-                        <input type="text" id="s_attrName" value="Inteligência" class="input-style">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold mb-1 text-zinc-400">Valor / Dado (Ex: 80)</label>
-                        <input type="text" id="s_attrVal" value="80" class="input-style">
-                    </div>
                     <div>
                         <label class="block text-xs font-bold mb-1 text-zinc-400">Arma/Item Focado (Ex: Lança)</label>
                         <input type="text" id="s_weaponName" value="Lança" class="input-style">
@@ -261,8 +266,9 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-xs font-bold mb-1 text-zinc-400">Seigen Total Restante</label>
-                        <input type="text" id="s_seigen" value="265S" class="input-style">
+                        <label class="block text-xs font-bold mb-1 text-zinc-400">Seigen Total (Base)</label>
+                        <input type="text" id="s_seigen_base" value="265" class="input-style">
+                        <span id="seigen_preview" class="text-[10px] text-[var(--accent)] font-bold mt-1 block">Ficará com: 265S</span>
                     </div>
                     <div>
                         <label class="block text-xs font-bold mb-1 text-zinc-400">Ação Extra do Turno</label>
@@ -321,9 +327,52 @@
 
         // Estado das Técnicas
         let techniques = [
-            { id: 1, name: "Nome da Técnica", link: "", cost: "-50S" },
-            { id: 2, name: "Outra Técnica", link: "", cost: "-75S" }
+            { id: 1, name: "Técnica Amaldiçoada", link: "", cost: "-50S" },
+            { id: 2, name: "Reforço de Energia", link: "", cost: "-75S" }
         ];
+
+        // Estado dos Atributos Focados
+        let focusedAttrs = [
+            { id: 1, name: "Inteligência", value: "80" }
+        ];
+
+        function renderFocusedAttrs() {
+            const container = document.getElementById('focusedAttrList');
+            container.innerHTML = '';
+            
+            focusedAttrs.forEach(attr => {
+                const html = `
+                    <div class="flex gap-2 items-center bg-[var(--bg-panel)] p-2 rounded border border-[var(--border-color)]">
+                        <input type="text" placeholder="Atributo (Ex: Esgrima)" value="${attr.name}" oninput="updateFocusedAttr(${attr.id}, 'name', this.value)" class="input-style text-xs flex-1 !p-1.5">
+                        <input type="text" placeholder="Valor (Ex: 80)" value="${attr.value}" oninput="updateFocusedAttr(${attr.id}, 'value', this.value)" class="input-style text-xs w-24 !p-1.5">
+                        <button onclick="removeFocusedAttr(${attr.id})" class="text-red-500 hover:text-red-400 p-1.5" title="Remover">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+            generateOutput();
+        }
+
+        function addFocusedAttr() {
+            const newId = focusedAttrs.length > 0 ? Math.max(...focusedAttrs.map(a => a.id)) + 1 : 1;
+            focusedAttrs.push({ id: newId, name: "", value: "" });
+            renderFocusedAttrs();
+        }
+
+        function removeFocusedAttr(id) {
+            focusedAttrs = focusedAttrs.filter(a => a.id !== id);
+            renderFocusedAttrs();
+        }
+
+        function updateFocusedAttr(id, field, value) {
+            const attr = focusedAttrs.find(a => a.id === id);
+            if(attr) {
+                attr[field] = value;
+                generateOutput();
+            }
+        }
 
         function renderTechniques() {
             const container = document.getElementById('techList');
@@ -374,14 +423,32 @@
             const dialogue = document.getElementById('f_dialogue').value.trim();
             const action2 = document.getElementById('f_action2').value.trim();
 
-            // Textos de Status
-            const attrName = document.getElementById('s_attrName').value.trim();
-            const attrVal = document.getElementById('s_attrVal').value.trim();
+            // Textos de Status e Armas
             const weaponName = document.getElementById('s_weaponName').value.trim();
             const weaponRank = document.getElementById('s_weaponRank').value.trim();
-            const seigen = document.getElementById('s_seigen').value.trim();
+            const baseSeigen = document.getElementById('s_seigen_base').value.trim();
             const extra = document.getElementById('s_extra').value.trim();
             const ping = document.getElementById('s_ping').value.trim();
+
+            // Cálculo Automático do Seigen
+            let totalCost = 0;
+            techniques.forEach(tech => {
+                const match = tech.cost.match(/\d+/);
+                if (match) {
+                    totalCost += parseInt(match[0], 10);
+                }
+            });
+
+            const seigenMatch = baseSeigen.match(/\d+/);
+            let finalSeigen = baseSeigen; 
+            if(seigenMatch) {
+                const baseVal = parseInt(seigenMatch[0], 10);
+                const result = baseVal - totalCost;
+                finalSeigen = result + "S";
+                document.getElementById('seigen_preview').innerText = "Ficará com: " + finalSeigen;
+            } else {
+                document.getElementById('seigen_preview').innerText = "";
+            }
 
             // Atributos Completos
             const forca = document.getElementById('s_forca') ? document.getElementById('s_forca').value.trim() : '10';
@@ -440,7 +507,7 @@
                 if (style === "1" || style === "2" || style === "4") {
                     const isHidden = style === "2";
                     
-                    if (attrName || weaponName || techniques.length > 0 || seigen || style === "4") {
+                    if (focusedAttrs.length > 0 || weaponName || techniques.length > 0 || baseSeigen || style === "4") {
                         out += `\n`;
 
                         // Renderiza atributos completos no estilo 4
@@ -448,15 +515,21 @@
                             out += `-# ***— Atributos Físicos e Mentais:***\n`;
                             out += `-# ***For: ${forca} | Vel: ${vel} | Res: ${res} | Ene: ${ene} | Ref: ${ref}***\n`;
                             out += `-# ***Int: ${int} | Agi: ${agi} | Ini: ${ini} | Mae: ${mae}***\n`;
-                            out += `-# ***– – – – – – – – – – – – – – – – – – – – – – – – – – – – – – –***\n`;
-                        } else if (attrName && attrVal) {
-                            out += `-# ***— ${attrName}: ${attrVal} | Passivo [ \`${attrVal}\` ]***\n`;
-                            out += `-# ***– – – – – – – – – – – – – – – – – – – – – – – – – – – – – – –***\n`;
+                            out += `-# ***————————————————————————————————————————————***\n`;
+                        } else if (focusedAttrs.length > 0) {
+                            let hasValidAttr = false;
+                            focusedAttrs.forEach(attr => {
+                                if (attr.name && attr.value) {
+                                    out += `-# ***— ${attr.name}: ${attr.value} | Passivo [ \`${attr.value}\` ]***\n`;
+                                    hasValidAttr = true;
+                                }
+                            });
+                            if (hasValidAttr) out += `-# ***————————————————————————————————————————————***\n`;
                         }
 
                         if (weaponName && weaponRank) {
                             out += `-# ***— Rank [ \`${weaponName}\` ]: ${weaponRank}***\n`;
-                            out += `-# ***– – – – – – – – – – – – – – – – – – – – – – – – – – – – – – –***\n`;
+                            out += `-# ***————————————————————————————————————————————***\n`;
                         }
                         
                         techniques.forEach(tech => {
@@ -464,27 +537,34 @@
                             if(formatted) out += `-# ***${formatted}***\n`;
                         });
 
-                        if (techniques.length > 0 && seigen) {
-                            out += `-# ***– – – – – – – – – – – – – – – – – – – – – – – – – – – – – – –***\n`;
+                        if (techniques.length > 0 && finalSeigen) {
+                            out += `-# ***————————————————————————————————————————————***\n`;
                         }
                         
-                        if (seigen) {
-                            out += `-# ***— Seigen total: ${seigen}***\n`;
+                        if (baseSeigen) {
+                            out += `-# ***— Seigen total: ${finalSeigen}***\n`;
                         }
                     }
                 } 
                 // Estilo 3 usa Bloco de Código (```)
                 else if (style === "3") {
-                    if (attrName || weaponName || techniques.length > 0 || seigen) {
+                    if (focusedAttrs.length > 0 || weaponName || techniques.length > 0 || baseSeigen) {
                         out += `\n\`\`\`ansi\n`;
                         
-                        if (attrName && attrVal) {
-                            out += `— ${attrName}: ${attrVal} | Passivo [ ${attrVal} ]\n`;
-                            out += `-------------------------------------------------\n`;
+                        if (focusedAttrs.length > 0) {
+                            let hasValidAttr = false;
+                            focusedAttrs.forEach(attr => {
+                                if (attr.name && attr.value) {
+                                    out += `— ${attr.name}: ${attr.value} | Passivo [ ${attr.value} ]\n`;
+                                    hasValidAttr = true;
+                                }
+                            });
+                            if (hasValidAttr) out += `————————————————————————————————————————————\n`;
                         }
+
                         if (weaponName && weaponRank) {
                             out += `— Rank [ ${weaponName} ]: ${weaponRank}\n`;
-                            out += `-------------------------------------------------\n`;
+                            out += `————————————————————————————————————————————\n`;
                         }
                         
                         techniques.forEach(tech => {
@@ -494,12 +574,12 @@
                             }
                         });
 
-                        if (techniques.length > 0 && seigen) {
-                            out += `-------------------------------------------------\n`;
+                        if (techniques.length > 0 && finalSeigen) {
+                            out += `————————————————————————————————————————————\n`;
                         }
                         
-                        if (seigen) {
-                            out += `— Seigen total: ${seigen}\n`;
+                        if (baseSeigen) {
+                            out += `— Seigen total: ${finalSeigen}\n`;
                         }
                         out += `\`\`\``;
                     }
@@ -536,6 +616,7 @@
         });
 
         // Setup Inicial
+        renderFocusedAttrs();
         renderTechniques();
 
     </script>
